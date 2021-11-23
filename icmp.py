@@ -7,7 +7,7 @@ from icmp_type import ICMPType
 ICMP_STRUCT = "!BBHHH4sH"
 
 
-def build_packet(code: int, icmp_type: ICMPType, payload: bytes, dest_ip: str, dest_port: int) -> bytes:
+def build_packet(icmp_type: ICMPType, code: int, payload: bytes, dest_ip: str, dest_port: int) -> bytes:
     """
     Build ICMP packet using struct module, based on the following structure:
 

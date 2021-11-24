@@ -1,0 +1,13 @@
+version: '3'
+services:
+    client:
+        build: .
+        command: python client.py
+        sysctls:
+            - net.ipv4.icmp_echo_ignore_all=1
+
+    server:
+        build: .
+        command: python server.py
+        sysctls:
+            - net.ipv4.icmp_echo_ignore_all=1

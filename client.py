@@ -86,6 +86,7 @@ class Client(object):
 
 
 if __name__ == "__main__":
+    # TODO: make it configurable
     client = Client(
         server="server", local_port=8000,
         target_host="ynet.co.il", target_port=443

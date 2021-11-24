@@ -1,6 +1,7 @@
 import socket
 
-BUFFER_SIZE = 2 ** 10
+TCP_BUFFER_SIZE = 2 ** 10
+ICMP_BUFFER_SIZE = 65565
 
 
 def create_icmp_socket():

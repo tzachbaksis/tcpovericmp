@@ -4,7 +4,7 @@ import socket
 import sys
 
 import icmp
-from icmp_type import ICMPType
+from icmp.icmp_type import ICMPType
 from utils.sockets import create_tcp_socket, create_icmp_socket, TCP_BUFFER_SIZE, ICMP_BUFFER_SIZE
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")

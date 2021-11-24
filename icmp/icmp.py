@@ -1,8 +1,8 @@
 import struct
 import socket
 
-from icmp_checksum import ICMPChecksum
-from icmp_type import ICMPType
+from .icmp_checksum import ICMPChecksum
+from .icmp_type import ICMPType
 
 ICMP_STRUCT = "!BBHHH4sH"
 

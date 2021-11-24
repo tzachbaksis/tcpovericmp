@@ -1,53 +1,88 @@
+import logging
+import select
 import socket
+import sys
 
-from select import select
-from icmp import build_packet, parse_packet
+import icmp
 from icmp_type import ICMPType
+from utils.sockets import create_tcp_socket, create_icmp_socket, TCP_BUFFER_SIZE, ICMP_BUFFER_SIZE
 
-from utils.sockets import create_tcp_socket, create_icmp_socket, BUFFER_SIZE
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# Port is not part of a ICMP packet, the number can even be randomized
+PORT_IGNORED = 0
+
+
+class ClientSession(object):
+    def __init__(self, server: str, sock: socket.socket, target_host: str, target_port: int) -> None:
+        self.server = server
+        self.target_host = target_host
+        self.target_port = target_port
+        self.tcp_socket = sock
+        self.icmp_socket = create_icmp_socket()
+        self.sockets = [self.tcp_socket, self.icmp_socket]
+
+    def start(self) -> None:
+        logger.debug(f"New session started!")
+        while True:
+            socks, _, _ = select.select(self.sockets, [], [])
+            for sock in socks:
+                try:
+                    self.tunnel_to_client(sock) if sock.proto == socket.IPPROTO_ICMP else self.client_to_tunnel(sock)
+                except Exception:
+                    self.finish_session()
+                    return
+
+    def tunnel_to_client(self, sock: socket.socket) -> None:
+        logger.debug(f"Received ICMP packets from the server. Parsing it and forwarding TCP to the client")
+        target_icmp_data = sock.recvfrom(ICMP_BUFFER_SIZE)
+        icmp_type, _, payload, _, _ = icmp.parse_packet(target_icmp_data[0])
+        try:
+            self.tcp_socket.send(payload)
+        except (ConnectionResetError, BrokenPipeError):
+            logger.debug("The client closed his TCP socket...")
+            raise
+
+    def client_to_tunnel(self, sock: socket.socket) -> None:
+        logger.debug(f"Received TCP packets from the client. Building the ICMP packets and sending to the server")
+        try:
+            client_data = sock.recv(TCP_BUFFER_SIZE)
+            icmp_packet = icmp.build_packet(ICMPType.ECHO_REQUEST, 0, client_data, self.target_host, self.target_port)
+            self.icmp_socket.sendto(icmp_packet, (self.server, PORT_IGNORED))
+        except socket.error:
+            logger.debug("The server closed its socket...")
+            raise
+
+    def finish_session(self) -> None:
+        logger.debug(f"Finishing session...")
+        self.tcp_socket.close()
+        icmp_packet = icmp.build_packet(ICMPType.ECHO_REQUEST, 1, b"", self.target_host, self.target_port)
+        self.icmp_socket.sendto(icmp_packet, (self.server, PORT_IGNORED))
+        self.icmp_socket.close()
 
 
 class Client(object):
-    def __init__(self, tcp_listen_port: int, server_addr: str, target_host: str, target_port: int):
-        self.server_addr = server_addr
-        self.tcp_socket = create_tcp_socket()
-        self.icmp_socket = create_icmp_socket()
-        self.tcp_socket.bind(("0.0.0.0", tcp_listen_port))
-        self.sockets = [self.tcp_socket, self.icmp_socket]
-        self.target_host = socket.gethostbyname(target_host)
-        self.target_port = target_port
+    def __init__(self, server: str, local_port: int, target_host: str, target_port: int) -> None:
+        logger.info(f"Starting client. Tunneling through: {server}, targeting: {target_host}:{target_port}...")
+        self.server = server
+        target_host = socket.gethostbyname(target_host)
+        self.target_host, self.target_port = (target_host, target_port)
+        self.tcp_server_socket = create_tcp_socket()
+        self.tcp_server_socket.bind(("0.0.0.0", local_port))
 
-    def start(self):
+    def start_listening(self) -> None:
         while True:
-            self.tcp_socket.listen(1)
-            client_socket, _ = self.tcp_socket.accept()
-            while True:
-                ready_for_io_sockets, _, _ = select(self.sockets, [], [])
-                for ready_for_io_socket in ready_for_io_sockets:
-                    if ready_for_io_socket.proto == socket.IPPROTO_ICMP:
-                        self.tunnel_to_client(ready_for_io_socket)
-                    else:
-                        self.client_to_tunnel(ready_for_io_socket)
-
-    def tunnel_to_client(self, server_socket):
-        server_socket_data = server_socket.recvfrom(BUFFER_SIZE)
-        icmp_type, _, payload, _, _ = parse_packet(server_socket_data[0])
-        # if packet.type == icmp.ICMP_ECHO_REQUEST:
-        # Not our packet
-        # return
-
-        self.tcp_socket.send(payload)
-
-    def client_to_tunnel(self, client_socket):
-        client_socket_data = client_socket.recv(BUFFER_SIZE)
-        icmp_packet = build_packet(ICMPType.ECHO_REQUEST, 0, client_socket_data, (self.target_host, self.target_port))
-        self.icmp_socket.sendto(icmp_packet, (self.server_addr, 1))
+            self.tcp_server_socket.listen(5)
+            sock, _ = self.tcp_server_socket.accept()
+            session = ClientSession(self.server, sock, self.target_host, self.target_port)
+            session.start()
 
 
-def main():
-    client = Client(8000, "server", "ynet.co.il", 443)
-    client.start()
+if __name__ == "__main__":
+    client = Client(
+        server="server", local_port=8000,
+        target_host="ynet.co.il", target_port=443
+    )
 
-
-if __name__ == '__main__':
-    main()
+    client.start_listening()

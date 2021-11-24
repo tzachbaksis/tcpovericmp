@@ -29,13 +29,13 @@ class ClientSession(object):
             socks, _, _ = select.select(self.sockets, [], [])
             for sock in socks:
                 try:
-                    self.tunnel_to_client(sock) if sock.proto == socket.IPPROTO_ICMP else self.client_to_tunnel(sock)
+                    self.server_to_client(sock) if sock.proto == socket.IPPROTO_ICMP else self.client_to_server(sock)
                 except Exception:
                     self.finish_session()
                     return
 
-    def tunnel_to_client(self, sock: socket.socket) -> None:
-        logger.debug(f"Received ICMP packets from the server. Parsing it and forwarding TCP to the client")
+    def server_to_client(self, sock: socket.socket) -> None:
+        logger.debug(f"Received ICMP packets from the server. Parsing them and forwarding TCP to the client")
         target_icmp_data = sock.recvfrom(ICMP_BUFFER_SIZE)
         icmp_type, _, payload, _, _ = icmp.parse_packet(target_icmp_data[0])
         try:
@@ -44,7 +44,7 @@ class ClientSession(object):
             logger.debug("The client closed his TCP socket...")
             raise
 
-    def client_to_tunnel(self, sock: socket.socket) -> None:
+    def client_to_server(self, sock: socket.socket) -> None:
         logger.debug(f"Received TCP packets from the client. Building the ICMP packets and sending to the server")
         try:
             client_data = sock.recv(TCP_BUFFER_SIZE)
@@ -63,6 +63,12 @@ class ClientSession(object):
 
 
 class Client(object):
+    """
+        A client used to allow TCP communication on TCP limited machines through ICMP tunneling.
+        The client has two main goals:
+            1. Receiving TCP packets from the client, wrapping them in ICMP and sending to the server (see `client_to_server`)
+            2. Receiving ICMP packets from the server, parsing them and sending TCP back to the client (see `server_to_client`).
+        """
     def __init__(self, server: str, local_port: int, target_host: str, target_port: int) -> None:
         logger.info(f"Starting client. Tunneling through: {server}, targeting: {target_host}:{target_port}...")
         self.server = server

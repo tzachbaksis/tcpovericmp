@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Server(object):
-    def __init__(self):
+    def __init__(self) -> None:
         self.client_to_target_socket = create_icmp_server_socket()
         self.target_to_client_socket = create_icmp_socket()
         self.tcp_socket = None
@@ -22,7 +22,7 @@ class Server(object):
         self.dest_addr = None
         self.dest_port = None
 
-    def client_to_target(self):
+    def client_to_target(self) -> None:
         raw_packet, source_addr = self.client_to_target_socket.recvfrom(ICMP_BUFFER_SIZE)
         self.client_addr = source_addr[0]
         icmp_type, code, payload, self.dest_addr, self.dest_port = parse_packet(raw_packet)
@@ -42,7 +42,7 @@ class Server(object):
             self.sockets.append(self.tcp_socket)
         self.tcp_socket.send(payload)
 
-    def target_to_client(self, target_socket):
+    def target_to_client(self, target_socket: socket.socket):
         logger.debug("Received TCP packets from the target. Wrapping them in ICMP and forwarding to the client")
         try:
             target_data = target_socket.recv(TCP_BUFFER_SIZE)
@@ -51,7 +51,7 @@ class Server(object):
         icmp_packet = build_packet(ICMPType.ECHO_REPLY, 0, target_data, self.dest_addr, self.dest_port)
         self.target_to_client_socket.sendto(icmp_packet, (self.client_addr, 0))
 
-    def tunnel(self):
+    def tunnel(self) -> None:
         logger.info("Started server. Waiting from incoming ICMP packets...")
         while True:
             ready_for_io_sockets, _, _ = select(self.sockets, [], [])

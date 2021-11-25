@@ -1,3 +1,4 @@
+import argparse
 import logging
 import select
 import socket
@@ -69,6 +70,7 @@ class Client(object):
             1. Receiving TCP packets from the client, wrapping them in ICMP and sending to the server (see `client_to_server`)
             2. Receiving ICMP packets from the server, parsing them and sending TCP back to the client (see `server_to_client`).
         """
+
     def __init__(self, server: str, local_port: int, target_host: str, target_port: int) -> None:
         logger.info(f"Starting client. Tunneling through: {server}, targeting: {target_host}:{target_port}...")
         self.server = server
@@ -85,11 +87,22 @@ class Client(object):
             session.start()
 
 
-if __name__ == "__main__":
-    # TODO: make it configurable
-    client = Client(
-        server="server", local_port=8000,
-        target_host="ynet.co.il", target_port=443
-    )
+def main() -> None:
+    args = parse_args()
+    Client(
+        server=args.tunnel_server, local_port=args.local_port,
+        target_host=args.target_host, target_port=args.target_port
+    ).start_listening()
 
-    client.start_listening()
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tunnel-server", required=True, type=str)
+    parser.add_argument("--local-port", help="Local port for incoming TCP connections", required=True, type=int)
+    parser.add_argument("--target-host", required=True, type=str)
+    parser.add_argument("--target-port", required=True, type=int)
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    main()

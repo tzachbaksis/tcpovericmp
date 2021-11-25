@@ -2,7 +2,7 @@ version: '3'
 services:
     client:
         build: .
-        command: python client.py
+        command: python client.py --tunnel-server ${SERVER} --local-port ${LOCAL_PORT} --target-host ${TARGET_HOST} --target-port ${TARGET_PORT}
         sysctls:
             - net.ipv4.icmp_echo_ignore_all=1
 
